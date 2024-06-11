@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/task', [TaskController::class, 'index']);
+Route::get('/task/search', [TaskController::class, 'search']);
 Route::get('/users', [AuthController::class, 'indexU']);
 
 // protected routes

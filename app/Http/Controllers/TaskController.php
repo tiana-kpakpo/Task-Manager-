@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Task;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class TaskController extends Controller
 {
@@ -122,18 +123,38 @@ class TaskController extends Controller
      
          return response()->json(['message' => 'Task deleted successfully.'], 200);
      }
-     
-
-    // public function destroy(string $id)
-    // {
-    //     return Task::destroy($id);
-    // }
 
     /**
      * filters the specified resource from storage.
      */
-    public function search(string $id)
-    {
-        //
+    public function search(Request $request)
+{
+    
+    $query = $request->input('query');
+
+    
+    $tasks = Task::query();
+
+    // Apply search query to title, description, and any other relevant fields
+    if ($query) {
+        $tasks->where(function ($q) use ($query) {
+            $q->where('title', 'like', '%' . $query . '%')
+              ->orWhere('description', 'like', '%' . $query . '%')
+              ->orWhere('category', 'like', '%' . $query . '%')
+              ->orWhere('status', 'like', '%' . $query . '%')
+              ->orWhere('priority', 'like', '%' . $query . '%')
+              ->orWhere('category', 'like', '%' . $query . '%');
+          
+        });
     }
+
+    // Retrieve filtered tasks
+    $filteredTasks = $tasks->get();
+
+    return response()->json([
+        'tasks' => $filteredTasks,
+        'message' => 'Tasks retrieved successfully.'
+    ]);
+}  
+    
 }
