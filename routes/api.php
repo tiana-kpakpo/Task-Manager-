@@ -17,6 +17,7 @@ Route::get('/users', [AuthController::class, 'indexU']);
 Route::middleware('auth:sanctum') -> group(function(){
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/task', [TaskController::class, 'store']);
+    Route::get('/users/{userId}/task', [TaskController::class, 'getTasksForUser']);
     Route::get('/task/{id}', [TaskController::class, 'show']);
     Route::patch('/task/{id}', [TaskController::class, 'update']);
     Route::delete('/task/{id}', [TaskController::class, 'destroy']);
