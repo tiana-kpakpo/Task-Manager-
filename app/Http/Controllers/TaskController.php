@@ -7,7 +7,6 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 
 class TaskController extends Controller
 {
@@ -23,39 +22,43 @@ class TaskController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-    {
-       $validData = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'due_date' => 'required|date',
-            'category' => 'required|string',
-            'reminders' => 'nullable|string',
-            'priority' => 'required|integer',
-            'recurrence' => 'nullable|string',
-            'assigned_to' => 'nullable|exists:users, id'
+{
+    $validData = $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'due_date' => 'required|date',
+        'category' => 'required|string',
+        'reminders' => 'nullable|string',
+        'priority' => 'required|integer',
+        'recurrence' => 'nullable|string|in:daily,weekly,monthly,yearly',
+        'user_id' => 'nullable|exists:users,id'
+    ]);
 
-        ]);
+    $user = $request->user();
 
-        //  $task = Task::create($request->all());
+    $task = $user->tasks()->create($validData);
 
-        $user = $request->user();
+    //particular user's task
+    $task->users()->attach($user->id);
 
-        $task = $user->tasks()->create($validData);
-
-        $task->users()->attach($request->user()->id);
-
-        if (isset($validData['assigned_to'])) {
-            $assignedUser = User::find($validData['assigned_to']);
-            if ($assignedUser) {
-                $task->users()->attach($assignedUser->id);
-            }
+    //assigning a task to someone
+    if ($request->has('user_id') && $validData['user_id'] != $user->id) {
+        $assignedUser = User::find($validData['user_id']);
+        if ($assignedUser) {
+            $task->users()->attach($assignedUser->id);
+            return response()->json([
+                'message' => 'Task successfully assigned to '  .  $assignedUser->name,
+                'task' => $task
+            ], 201);
         }
-    
-         return response()->json([
-            'message' => 'Task created successfully',
-            'task' => $task
-         ], 201);
     }
+
+    return response()->json([
+        'message' => 'Task created successfully',
+        'task' => $task
+    ], 201);
+}
+
 
     /**
      * Display the specified resource.
@@ -69,21 +72,6 @@ class TaskController extends Controller
                 'message' => 'Task not found'
             ], 404);
         }
-
-        // $response = [
-        //     'id' => $task->id,
-        //     'title' => $task->title,
-        //     'description' => $task->description,
-        //     'due_date' => $task->due_date,
-        //     'category' => $task->category,
-        //     'status' => $task->status,
-        //     'priority' => $task->priority,
-        //     'reminders' => $task->reminders,
-        //     'recurrence' => $task->recrrence,
-        //     'created_at' => $task->created_at,
-        //     'updated_at' => $task->updated_at,
-            
-        // ];
 
         return response()->json([
             'task' => $task,
@@ -104,7 +92,7 @@ class TaskController extends Controller
         'reminders' => 'nullable|string',
         'priority' => 'integer',
         'recurrence' => 'nullable|string',
-        'assigned_to' => 'nullable|exists:users, id'
+        'user_id' => 'nullable|exists:users,id'
 
         ]);
 
@@ -125,7 +113,7 @@ class TaskController extends Controller
 
         } catch (ModelNotFoundException $e) {
             return response()-> json([
-                'message' => 'Task with id {$id} not found'
+                'message' => 'Task with id' . $task->id . 'not found'
             ], 404);
         }
       
@@ -134,19 +122,6 @@ class TaskController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-
-    //  public function destroy(string $id)
-    //  {
-    //      $task = Task::findOrFail($id);
-     
-    //      if (!$task) {
-    //          return response()->json(['message' => 'Task not found or already deleted.'], 404);
-    //      }
-     
-    //      $task->delete();
-     
-    //      return response()->json(['message' => 'Task deleted successfully.'], 200);
-    //  }
 
     public function destroy(string $id)
 {
@@ -168,7 +143,7 @@ class TaskController extends Controller
 
     } catch (ModelNotFoundException $e) {
         return response()->json([
-            'message' => "Task with id {$id} not found"
+            'message' => 'Task with id' . $task->id . 'not found'
         ], 404);
     }
 }
@@ -178,50 +153,58 @@ class TaskController extends Controller
      * filters the specified resource from storage.
      */
     public function search(Request $request)
-{
-    
-    $query = $request->input('query');
-
-    
-    $tasks = Task::query();
-
-    // search query
-    if ($query) {
-        $tasks->where(function ($q) use ($query) {
-            $q->where('title', 'like', '%' . $query . '%')
-              ->orWhere('description', 'like', '%' . $query . '%')
-              ->orWhere('category', 'like', '%' . $query . '%')
-              ->orWhere('status', 'like', '%' . $query . '%')
-              ->orWhere('priority', 'like', '%' . $query . '%')
-              ->orWhere('category', 'like', '%' . $query . '%');
-          
-        });
-    }
-
-    // Retrieve filtered tasks
-    $filteredTasks = $tasks->get();
-
-    if ($filteredTasks->isEmpty()) {
-        return response()->json([
-            'message' => 'No tasks found matching the search criteria.'
-        ], 404);
-    }
-
-    return response()->json([
-        'tasks' => $filteredTasks,
-        'message' => 'Tasks retrieved successfully.'
-    ]);
-}  
-
-    public function getTasksForUser($userId)
     {
-        $user = User::findOrFail($userId);
-        $tasks = $user->tasks()->get();  /* Retrieves all tasks for the particular user */
+        $query = $request->input('query');
+    
+        // If no query provided, return error response
+        if (!$query) {
+            return response()->json([
+                'message' => 'No search query provided.'
+            ], 400);
+        }
+    
+        $tasks = Task::query();
 
+        $fields = ['title', 'description', 'category', 'status', 'priority'];
+    
+    
+        // Loop through each field and add search condition
+        $tasks->where(function ($q) use ($fields, $query) {
+            foreach ($fields as $field) {
+                $q->orWhere($field, 'like', '%' . $query . '%')->get();
+            }
+        });
+    
+        // Retrieve filtered tasks
+        $filteredTasks = $tasks->get();
+    
+        if ($filteredTasks->isEmpty()) {
+            return response()->json([
+                'message' => 'No tasks found matching the search criteria.'
+            ], 404);
+        }
+    
         return response()->json([
-            'user' => $user,
-            'tasks' => $tasks
+            'tasks' => $filteredTasks,
+            'message' => 'Tasks retrieved successfully.'
         ]);
     }
+    
+     
+
+
+    public function getTasksForUser(Request $request)
+{
+    $userId = $request->user()->id;
+    $user = User::findOrFail($userId);
+    $tasks = $user->tasks()->get();  /* Retrieves all tasks for the particular user */
+
+    return response()->json([
+        'user' => $user,
+        'tasks' => $tasks
+    ]);
+}
+
+
     
 }

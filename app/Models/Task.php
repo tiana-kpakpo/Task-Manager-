@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Task extends Model
 {
@@ -19,15 +19,15 @@ class Task extends Model
         'status',
         'reminders',
         'recurrence',
-        'assigned_to'
+        'user_id'
     ];
 
     protected $attributes = [
         'status' => 'pending'
     ];
 
-    public function users () : BelongsToMany
+    public function user () : BelongsTo
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsTo(User::class);
     }
 }
